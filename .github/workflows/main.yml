@@ -36,7 +36,7 @@ jobs:
         run: docker save -o image.tar $IMAGE_NAME
 
       - name: Upload the Docker image tarball as an artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: docker-image
           path: image.tar
