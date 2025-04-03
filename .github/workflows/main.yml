@@ -19,7 +19,7 @@ jobs:
   docker-build:
     # This job corresponds to the .docker-build job from your included template.
     # You'll need to implement the Docker build logic here.  Assuming a multi-stage build.
-    runs-on: debian-bookworm # Adjust runner as needed
+    runs-on: ubuntu-24.04 # Adjust runner as needed
 
     steps:
       - name: Checkout code
@@ -44,7 +44,7 @@ jobs:
 
   test:
     needs: docker-build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         test_type:
