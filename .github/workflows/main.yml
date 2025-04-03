@@ -4,14 +4,15 @@ name: CI Pipeline
 on:
   push:
     branches:
-      - main  # Or your main development branch
+      - main
   pull_request:
     branches:
-      - main  # Or your main development branch
+      - main
 
 env:
   CORE_TEST_FOLDER: "./tests/core"
   EXTRAS_TEST_FOLDER: "./tests/extras"
+  IMAGE_NAME: local-test-image:latest   # A simple image name, as we're not pushing
 
 jobs:
   docker-build:
@@ -27,23 +28,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Login to the Container Registry (if needed)
-        #  If your registry requires login, uncomment and configure this step
-        #  uses: docker/login-action@v2
-        #  with:
-        #    registry: your-registry.example.com
-        #    username: ${{ secrets.DOCKER_USERNAME }}
-        #    password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build the Docker image
+        run: docker build -t ${{ env.IMAGE_NAME }} .
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v3
+      - name: Export the Docker image as a tarball
+        run: docker save -o image.tar ${{ env.IMAGE_NAME }}
+
+      - name: Upload the Docker image tarball as an artifact
+        uses: actions/upload-artifact@v3
         with:
-          context: .
-          push: false # Set to true to push the image
-          tags: ${{ github.registry }}/${{ github.repository }}:${{ github.sha }} #example for a tag
-          build-args: |
-            TARGET: dev
-            EXTRA: dfba,test
+          name: docker-image
+          path: image.tar
 
 
   test:
@@ -69,16 +64,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up caching
-        uses: actions/cache@v3
+      - name: Download the Docker image tarball
+        uses: actions/download-artifact@v3
         with:
-          path: ~/.uv/cache
-          key: ${{ runner.os }}-${{ github.ref }}-${{ github.sha }}-${{ matrix.test_type }}
-          restore-keys: |
-            ${{ runner.os }}-${{ github.ref }}-${{ github.sha }}-
-            ${{ runner.os }}-${{ github.ref }}-
-            ${{ runner.os }}-
+          name: docker-image
+          path: .
 
+      - name: Load the Docker image
+        run: docker load -i image.tar
       - name: Install dependencies and run tests
         run: |
           uv run ${{ matrix.extra_dependencies }} --with pytest --with pytest-cov coverage run --source ./src -m pytest ${{ matrix.test_path }} --junitxml=test_report.xml
