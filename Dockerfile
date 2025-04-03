@@ -2,7 +2,7 @@ ARG SUNDIALS_VERSION=5.1.0
 ARG GLPK_VERSION=4.65
 ARG EXTRAS="dfba"
 
-FROM ghcr.io/amyris/sundials-glpk-pybind:sundials-${SUNDIALS_VERSION}-glpk-${GLPK_VERSION}
+FROM ghcr.io/amyris/sundials-glpk-pybind:sundials-${SUNDIALS_VERSION}-glpk-${GLPK_VERSION} as dev
 COPY --from=ghcr.io/astral-sh/uv:0.6.11 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1
