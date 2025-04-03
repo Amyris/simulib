@@ -6,8 +6,9 @@ on:
     branches:
       - main
   pull_request:
-    branches:
-      - main
+    # This will trigger the workflow on any pull request, regardless of the target branch.
+    types: [opened, synchronize, reopened]
+  workflow_dispatch: # Allow manual triggering of the workflow
 
 env:
   CORE_TEST_FOLDER: "./tests/core"
@@ -18,7 +19,7 @@ jobs:
   docker-build:
     # This job corresponds to the .docker-build job from your included template.
     # You'll need to implement the Docker build logic here.  Assuming a multi-stage build.
-    runs-on: ubuntu-latest # Adjust runner as needed
+    runs-on: debian-bookworm # Adjust runner as needed
 
     steps:
       - name: Checkout code
