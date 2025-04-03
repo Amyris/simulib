@@ -1,0 +1,101 @@
+# .github/workflows/main.yml
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main  # Or your main development branch
+  pull_request:
+    branches:
+      - main  # Or your main development branch
+
+env:
+  CORE_TEST_FOLDER: "./tests/core"
+  EXTRAS_TEST_FOLDER: "./tests/extras"
+
+jobs:
+  docker-build:
+    # This job corresponds to the .docker-build job from your included template.
+    # You'll need to implement the Docker build logic here.  Assuming a multi-stage build.
+    runs-on: ubuntu-latest # Adjust runner as needed
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # --- The following steps need to be tailored to your multi-stage Docker build ---
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to the Container Registry (if needed)
+        #  If your registry requires login, uncomment and configure this step
+        #  uses: docker/login-action@v2
+        #  with:
+        #    registry: your-registry.example.com
+        #    username: ${{ secrets.DOCKER_USERNAME }}
+        #    password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: false # Set to true to push the image
+          tags: ${{ github.registry }}/${{ github.repository }}:${{ github.sha }} #example for a tag
+          build-args: |
+            TARGET: dev
+            EXTRA: dfba,test
+
+
+  test:
+    needs: docker-build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test_type:
+          - no-extras
+          - with-dfba-extra
+        include:
+          - test_type: no-extras
+            test_path: ${{ env.CORE_TEST_FOLDER }}
+            extra_dependencies: "" # No extra dependencies for this test type
+          - test_type: with-dfba-extra
+            test_path: ${{ env.EXTRAS_TEST_FOLDER }}
+            extra_dependencies: "--with dfba"  # List any extra dependencies here
+
+    container:
+      image: ${{ github.registry }}/${{ github.repository }}:${{ github.sha }}  #this will need to be adjusted, depending on the context of the docker images
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up caching
+        uses: actions/cache@v3
+        with:
+          path: ~/.uv/cache
+          key: ${{ runner.os }}-${{ github.ref }}-${{ github.sha }}-${{ matrix.test_type }}
+          restore-keys: |
+            ${{ runner.os }}-${{ github.ref }}-${{ github.sha }}-
+            ${{ runner.os }}-${{ github.ref }}-
+            ${{ runner.os }}-
+
+      - name: Install dependencies and run tests
+        run: |
+          uv run ${{ matrix.extra_dependencies }} --with pytest --with pytest-cov coverage run --source ./src -m pytest ${{ matrix.test_path }} --junitxml=test_report.xml
+
+      - name: Generate coverage report
+        run: |
+          coverage xml
+          coverage report
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-report-${{ matrix.test_type }}
+          path: test_report.xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report-${{ matrix.test_type }}
+          path: coverage.xml
