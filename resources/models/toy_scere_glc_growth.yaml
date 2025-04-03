@@ -1,0 +1,68 @@
+name: Toy S. cerevisiae Glucose Growth Model
+description: Simulib-ready toy model
+simulation_properties:
+  algorithm: Harwood
+  tout: 0.01
+  tstart: 0
+  tstop: 20
+  rel_tolerance: 1e-6
+  default_abs_tolerance: 1e-6
+  display: none
+variables:
+  Vgmax: 7.3
+  Kg: 1.026
+  Vzmax: 32.0
+  Kz: 14.85
+  Kig: 0.5
+  D: 0.035
+  Gin: 50.0
+  Zin: 50.0
+  Vomax: 6.0
+  Kie: 10
+odes:
+- initial_condition: 0.5
+  metabolite_id: null
+  rhs_expression: D
+  variable: Volume
+- initial_condition: 0.05
+  metabolite_id: null
+  rhs_expression: BIOMASS_SC4_bal * Biomass - D * Biomass / Volume
+  variable: Biomass
+- initial_condition: 5.0
+  metabolite_id: null
+  rhs_expression: EX_glc__D_e * Biomass + D * (Gin - Glucose) / Volume
+  variable: Glucose
+- initial_condition: 5.0
+  metabolite_id: null
+  rhs_expression: EX_xyl__D_e * Biomass + D * (Zin - Xylose) / Volume
+  variable: Xylose
+- initial_condition: 0.0
+  metabolite_id: null
+  rhs_expression: EX_etoh_e * Biomass - D * Ethanol / Volume
+  variable: Ethanol
+- initial_condition: 0.0
+  metabolite_id: null
+  rhs_expression: Glycerol * Biomass - D * Glycerol / Volume
+  variable: Glycerol
+exchange_fluxes:
+- exchange_flux_id: BIOMASS_SC4_bal
+  lower_bound: null
+  upper_bound: null
+- exchange_flux_id: EX_glc__D_e
+  upper_bound: null
+  lower_bound:
+    cond: Glucose
+    expr: Vgmax * (Glucose / (Kg + Glucose)) * (1 / (1 + Ethanol / Kie))
+- exchange_flux_id: EX_xyl__D_e
+  upper_bound: null
+  lower_bound:
+    cond: Glucose
+    expr: Vzmax * (Xylose / (Kz + Xylose)) * (1 / (1 + Ethanol / Kie)) * (1 / (1 + Glucose / Kig))
+- exchange_flux_id: EX_etoh_e
+  lower_bound: null
+  upper_bound: null
+- exchange_flux_id: EX_o2_e
+  upper_bound: null
+  lower_bound:
+    expr: Vomax
+    cond: 1.0

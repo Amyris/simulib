@@ -1,0 +1,5 @@
+C_STAR_MMOL: 1
+kLa: 1
+OTR: kLa * (C_STAR_MMOL - Oxygen)
+OUR: -1* EX_o2_e * Biomass
+

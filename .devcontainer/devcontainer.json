@@ -1,0 +1,49 @@
+{
+	"name": "Simulib dev container",
+
+	// Update the 'dockerComposeFile' list if you have more compose files or use different names.
+	// The .devcontainer/docker-compose.yml file contains any overrides you need/want to make.
+	"dockerComposeFile": [
+		"../docker-compose.yml",
+		"docker-compose.yml"
+	],
+
+	// The 'service' property is the name of the service for the container that VS Code should
+	// use. Update this value and .devcontainer/docker-compose.yml to the real service name.
+	"service": "app",
+
+	// The optional 'workspaceFolder' property is the path VS Code should open by default when
+	// connected. This is typically a file mount in .devcontainer/docker-compose.yml
+	"workspaceFolder": "/app",
+
+	// Set *default* container specific settings.json values on container create.
+	"settings": {},
+
+	// Add the IDs of extensions you want installed when the container is created.
+    "extensions": [
+		"ms-python.python",
+		"ms-python.vscode-pylance",
+		"visualstudioexptteam.vscodeintellicode",
+		"ms-python.debugpy",
+		"ms-toolsai.datawrangler",
+		"ms-toolsai.jupyter",
+		"google.geminicodeassist",
+		"GitHub.copilot",
+		"ms-python.isort",
+		"ms-python.black-formatter"
+	],
+
+    // Uncomment the next line if you only want specific services to start in your Docker Compose config.
+    // "runServices": [],
+
+    // Comment the next line if you want to keep your containers running after VS Code shuts down.
+    "shutdownAction": "stopCompose",
+
+    // Uncomment the next line to run commands right after the container is created - for example copying over .bashrc files
+    "onCreateCommand": "",
+
+    // Comment remoteUser to connect as a root user. 
+    // We are setting up a "vscode" user in the Dockerfile.vscode file.
+    // For more info: https://aka.ms/vscode-remote/containers/non-root.
+    "remoteUser": "vscode"
+}

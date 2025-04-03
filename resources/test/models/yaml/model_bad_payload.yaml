@@ -1,0 +1,20 @@
+variables:
+  K1: 0.5
+  K2: 0.25
+  K3: 5
+  K4: 10
+  V1: 20
+name: "xyz"
+not_fluxes:
+  Volume:
+    rhsxz_expression: D
+  Time:
+    rhsxz_expression: "1"
+initial_conditions:
+  Volume: 0.5
+  Biomass: 0.05
+  Glucose: 10.0
+  Ethanol: 0.0
+  Glycerol: 0.0
+  Oxygen: "V1"
+  Time: 0

@@ -1,0 +1,109 @@
+{
+    "name": "TEST_MODEL",
+    "description": "",
+    "odes": [
+        {
+            "variable": "Volume",
+            "rhs_expression": "D",
+            "initial_condition": 0.5,
+            "annotations": {}
+        },
+        {
+            "variable": "Time",
+            "rhs_expression": 1.0,
+            "initial_condition": 0.0,
+            "annotations": {}
+        },
+        {
+            "variable": "Biomass",
+            "rhs_expression": "BIOMASS_SC4_bal*Biomass",
+            "initial_condition": 0.05,
+            "annotations": {},
+            "metabolite_id": "Biomass"
+        },
+        {
+            "variable": "Glucose",
+            "rhs_expression": [
+                {
+                    "expr": "Glucose*K1",
+                    "cond": "D > 20"
+                },
+                {
+                    "expr": "Glucose*K2",
+                    "cond": "D > 0"
+                },
+                {
+                    "expr": "Glucose",
+                    "cond": "True"
+                }
+            ],
+            "initial_condition": 10.0,
+            "annotations": {},
+            "metabolite_id": "Glucose"
+        },
+        {
+            "variable": "Ethanol",
+            "rhs_expression": "Ethanol/Volume",
+            "initial_condition": 0.0,
+            "annotations": {},
+            "metabolite_id": "Ethanol"
+        },
+        {
+            "variable": "Glycerol",
+            "rhs_expression": "Glycerol/Volume",
+            "initial_condition": 0.0,
+            "annotations": {},
+            "metabolite_id": "Glycerol"
+        },
+        {
+            "variable": "Oxygen",
+            "rhs_expression": 0.0,
+            "initial_condition": "V1",
+            "annotations": {},
+            "metabolite_id": "Oxygen"
+        }
+    ],
+    "exchange_fluxes": [
+        {
+            "exchange_flux_id": "EX_etoh_e"
+        },
+        {
+            "exchange_flux_id": "BIOMASS_SC4_bal"
+        },
+        {
+            "exchange_flux_id": "EX_glyc_e",
+            "lower_bound": {
+                "expr": "Glycerol*K3",
+                "cond": "Glycerol"
+            },
+            "upper_bound": {
+                "expr": "Glycerol*K4",
+                "cond": "Glycerol"
+            }
+        },
+        {
+            "exchange_flux_id": "EX_o2_e",
+            "lower_bound": {
+                "expr": [
+                    {
+                        "expr": "Vomax",
+                        "cond": "Time <= 7.7"
+                    },
+                    {
+                        "expr": "0.0",
+                        "cond": "True"
+                    }
+                ],
+                "cond": "Oxygen"
+            }
+        }
+    ],
+    "variables": {
+        "K1": "0.500000000000000",
+        "K2": "0.250000000000000",
+        "K3": "5.00000000000000",
+        "K4": "10.0000000000000",
+        "V1": "20.0000000000000"
+    },
+    "simulation_properties": {}
+}

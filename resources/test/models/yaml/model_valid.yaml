@@ -1,0 +1,67 @@
+description: ''
+exchange_fluxes:
+- exchange_flux_id: EX_etoh_e
+- exchange_flux_id: BIOMASS_SC4_bal
+- exchange_flux_id: EX_glyc_e
+  lower_bound:
+    cond: Glycerol
+    expr: Glycerol*K3
+  upper_bound:
+    cond: Glycerol
+    expr: Glycerol*K4
+- exchange_flux_id: EX_o2_e
+  lower_bound:
+    cond: Oxygen
+    expr:
+    - cond: Time <= 7.7
+      expr: Vomax
+    - cond: 'True'
+      expr: '0.0'
+name: TEST_MODEL
+odes:
+- annotations: {}
+  initial_condition: 0.5
+  rhs_expression: D
+  variable: Volume
+- annotations: {}
+  initial_condition: 0.0
+  rhs_expression: 1.0
+  variable: Time
+- annotations: {}
+  initial_condition: 0.05
+  metabolite_id: Biomass
+  rhs_expression: BIOMASS_SC4_bal*Biomass
+  variable: Biomass
+- annotations: {}
+  initial_condition: 10.0
+  metabolite_id: Glucose
+  rhs_expression:
+  - cond: D > 20
+    expr: Glucose*K1
+  - cond: D > 0
+    expr: Glucose*K2
+  - cond: 'True'
+    expr: Glucose
+  variable: Glucose
+- annotations: {}
+  initial_condition: 0.0
+  metabolite_id: Ethanol
+  rhs_expression: Ethanol/Volume
+  variable: Ethanol
+- annotations: {}
+  initial_condition: 0.0
+  metabolite_id: Glycerol
+  rhs_expression: Glycerol/Volume
+  variable: Glycerol
+- annotations: {}
+  initial_condition: V1
+  metabolite_id: Oxygen
+  rhs_expression: 0.0
+  variable: Oxygen
+simulation_properties: {}
+variables:
+  K1: '0.500000000000000'
+  K2: '0.250000000000000'
+  K3: '5.00000000000000'
+  K4: '10.0000000000000'
+  V1: '20.0000000000000'
