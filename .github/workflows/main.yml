@@ -30,10 +30,10 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Build the Docker image
-        run: docker build -t ${{ env.IMAGE_NAME }} .
+        run: docker build -t $IMAGE_NAME .
 
       - name: Export the Docker image as a tarball
-        run: docker save -o image.tar ${{ env.IMAGE_NAME }}
+        run: docker save -o image.tar $IMAGE_NAME
 
       - name: Upload the Docker image tarball as an artifact
         uses: actions/upload-artifact@v3
@@ -52,10 +52,10 @@ jobs:
           - with-dfba-extra
         include:
           - test_type: no-extras
-            test_path: ${{ env.CORE_TEST_FOLDER }}
+            test_path: $CORE_TEST_FOLDER
             extra_dependencies: "" # No extra dependencies for this test type
           - test_type: with-dfba-extra
-            test_path: ${{ env.EXTRAS_TEST_FOLDER }}
+            test_path: $EXTRAS_TEST_FOLDER
             extra_dependencies: "--with dfba"  # List any extra dependencies here
 
     container:
