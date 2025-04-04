@@ -108,6 +108,29 @@ docker-compose run --rm app uv update
 docker-compose run --rm app uv sync --extra dev --extra test --extra dfba
 ```
 
+- Environment Variables: Create a .env file (use .env.template as template). The following environment variables are used within the project's Docker setup:
+
+
+
+  - `EXTRAS`: Specifies extra features or dependencies to be included during the build process. It is used in the `docker-compose.yml` and `Dockerfile` to define the extras to be installed.
+    - Default value(from `.env.template`): `dfba`
+  - `USER_UID`: Defines the User ID for the `vscode` user inside the development container. This is crucial for matching file permissions between the host and the container.
+    - Default value (from `.env.template`): `1000`
+  - `SUNDIALS_VERSION`: Defines the version of SUNDIALS library to be installed.
+    - Default value (from `Dockerfile`): `5.0.0`
+  - `GLPK_VERSION`: Defines the version of GLPK library to be installed.
+    - Default value (from `Dockerfile`): `4.65`
+  - `UV_COMPILE_BYTECODE`: Enables bytecode compilation for uv.
+    - Default value (from `Dockerfile`): `1`
+  - `UV_LINK_MODE`: Sets the link mode for uv.
+    - Default value (from `Dockerfile`): `copy`
+  - `USERNAME`: Defines the username for the user inside the development container.
+    - Default value (from `Dockerfile`): `vscode`
+  - `USER_GID`: Defines the Group ID for the vscode user inside the development container.
+    - Default value (from `Dockerfile`): `$USER_UID`
+  
+These variables can be configured in the .env file or passed as build arguments to the Docker commands.
+
 3. **Testing**: Run the existing tests to ensure your changes haven't introduced any regressions. Add new tests if you're adding new functionality.
 
 ```bash

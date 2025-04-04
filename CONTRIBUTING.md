@@ -23,7 +23,8 @@ Thank you for your interest in contributing to Simulib! We welcome contributions
     git checkout -b feature/my-new-feature
     ```
 
-2.  **Development:** Make your changes, ensuring they align with the project's goals and coding style.
+2.  **Development:** Make your changes, ensuring they align with the project's goals and coding style. If environment variables need to be changed, create a `.env` file from `env.template` (`cp .env.template .env`) and update it accordingly (`vi .env`).
+ 
 3.  **Testing:** Run the existing tests to ensure your changes haven't introduced any regressions. Add new tests if you're adding new functionality.
 
     ```bash

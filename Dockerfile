@@ -36,7 +36,7 @@ ARG USERNAME=vscode
 # user UID and GID. Usually, these are 1000 so it doesn't need to be changed.
 # See https://code.visualstudio.com/docs/remote/containers-advanced#_adding-a-nonroot-user-to-your-dev-container
 # for more info.
-ARG USER_UID=1334627004
+ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
 RUN apt-get update \
