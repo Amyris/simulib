@@ -1,95 +1,43 @@
-# .github/workflows/main.yml
-name: CI Pipeline
+name: CI - Run Unit Tests in Docker
 
 on:
   push:
+    branches: [ main ] # Or your default branch
+  # Trigger on pull requests targeting the main branch
+  pull_request:
     branches:
       - main
-  pull_request:
-    # This will trigger the workflow on any pull request, regardless of the target branch.
-    types: [opened, synchronize, reopened]
-  workflow_dispatch: # Allow manual triggering of the workflow
-
-env:
-  CORE_TEST_FOLDER: "./tests/core"
-  EXTRAS_TEST_FOLDER: "./tests/extras"
-  IMAGE_NAME: local-test-image:latest   # A simple image name, as we're not pushing
 
 jobs:
-  docker-build:
-    # This job corresponds to the .docker-build job from your included template.
-    # You'll need to implement the Docker build logic here.  Assuming a multi-stage build.
-    runs-on: ubuntu-24.04 # Adjust runner as needed
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # --- The following steps need to be tailored to your multi-stage Docker build ---
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build the Docker image
-        run: docker build -t $IMAGE_NAME .
-
-      - name: Export the Docker image as a tarball
-        run: docker save -o image.tar $IMAGE_NAME
-
-      - name: Upload the Docker image tarball as an artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: image.tar
-
-
   test:
-    needs: docker-build
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        test_type:
-          - no-extras
-          - with-dfba-extra
-        include:
-          - test_type: no-extras
-            test_path: $CORE_TEST_FOLDER
-            extra_dependencies: "" # No extra dependencies for this test type
-          - test_type: with-dfba-extra
-            test_path: $EXTRAS_TEST_FOLDER
-            extra_dependencies: "--with dfba"  # List any extra dependencies here
-
-    container:
-      image: ${{ github.registry }}/${{ github.repository }}:${{ github.sha }}  #this will need to be adjusted, depending on the context of the docker images
+    runs-on: ubuntu-latest # Standard runner with Docker pre-installed
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Download the Docker image tarball
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-image
-          path: .
-
-      - name: Load the Docker image
-        run: docker load -i image.tar
-      - name: Install dependencies and run tests
+      - name: Build Docker image for testing
         run: |
-          uv run ${{ matrix.extra_dependencies }} --with pytest --with pytest-cov coverage run --source ./src -m pytest ${{ matrix.test_path }} --junitxml=test_report.xml
+          docker build \
+            --tag my-test-image:latest \
+            --file Dockerfile .
+        # Notes:
+        # --tag my-test-image:latest : Gives the image a local name we can reference.
+        # --file path/to/your/Dockerfile : IMPORTANT: Replace with the actual path to your Dockerfile.
+        # . : Specifies the build context (usually the repository root).
 
-      - name: Generate coverage report
+      - name: Run tests with dFBA extra
         run: |
-          coverage xml
-          coverage report
+          docker run --rm \
+            -v "$(pwd):/app" \
+            -w /app \
+            my-test-image:latest \
+            uv run --with dfba --with pytest --with pytest-cov coverage run --source ./src -m pytest ./tests/extras --junitxml=test_report.xml
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-report-${{ matrix.test_type }}
-          path: test_report.xml
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report-${{ matrix.test_type }}
-          path: coverage.xml
+      - name: Run tests without dFBA extra
+        run: |
+          docker run --rm \
+            -v "$(pwd):/app" \
+            -w /app \
+            my-test-image:latest \
+            uv run --with pytest --with pytest-cov coverage run --source ./src -m pytest ./tests/core --junitxml=test_report.xml
