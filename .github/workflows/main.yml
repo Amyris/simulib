@@ -7,6 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
+  
   build_check:
     # Run on pull requests to verify the build process
     if: github.event_name == 'pull_request'
