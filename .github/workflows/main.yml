@@ -101,12 +101,3 @@ jobs:
           # Use GitHub CLI to post the comment from the file to the PR
           # github.event.pull_request.number is available in pull_request events
           gh pr comment ${{ github.event.pull_request.number }} --body-file coverage_comment.md
-
-      - name: Upload HTML coverage report artifact
-        # Keep this running conditionally on success
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report-html
-          path: htmlcov/
-          retention-days: 7
