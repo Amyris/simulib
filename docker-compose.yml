@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       target: dev
       args:
-        - EXTRA=dfba
+        - EXTRAS=$EXTRAS
     ports:
       - 7676:8888
     command: uv run --with jupyter jupyter lab --port=8888 --no-browser --ip=0.0.0.0 --allow-root -ServerApp.token=''
