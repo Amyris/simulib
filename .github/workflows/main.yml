@@ -101,102 +101,91 @@ jobs:
           # Tell the action to read the comment body from the file we just created
           path: coverage_comment.md
 
-  # --- Automatic TestPyPI Publish Job ---
-  publish-to-testpypi:
-    name: Publish Dev Build to TestPyPI
-    needs: test # Depends on test job succeeding
-    # Runs ONLY on push events to the main branch (not PRs, not manual triggers)
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.test.result == 'success'
+# --- New Job: Publish to TestPyPI (Manual Trigger) ---
+  publish-testpypi:
+    name: Publish to TestPyPI
+    # This job only runs when manually triggered via workflow_dispatch
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment:
-      name: testpypi
-      url: https://test.pypi.org/p/simulib # <-- IMPORTANT: Replace simulib with your package name
+      name: testpypi # Environment name configured in GitHub secrets/settings
+      url: https://test.pypi.org/pypi # URL shown in GH deployments
     permissions:
-      id-token: write # Needed for Trusted Publishing
+      id-token: write # Necessary for trusted publishing
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        # Fetch all history so build tools relying on tags/history work
         with:
-          fetch-depth: 0 # Fetch all history for versioning if using setuptools_scm later
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.10' # Choose your desired Python version
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install build dependencies
+        run: python -m pip install build twine
 
-      - name: Install build tools and tomlkit
-        run: uv pip install --system --upgrade build tomlkit
+      - name: Generate development version suffix
+        id: version_suffix
+        # Using timestamp for uniqueness on manual triggers
+        run: echo "suffix=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Set Development Version
-        id: set_dev_version
-        # This script reads pyproject.toml, appends .dev<RUN_NUMBER> to the version,
-        # and writes it back. Assumes standard `project.version`.
-        # Adjust ['project']['version'] if your version is elsewhere (e.g., ['tool']['poetry']['version'])
+      # IMPORTANT: Modify this step based on your project structure
+      # Option 1: Using sed (example for pyproject.toml with 'version = "..."')
+      - name: Update version in pyproject.toml for TestPyPI
         run: |
-          import tomlkit, os, sys
-          run_number = os.environ['GITHUB_RUN_NUMBER']
-          toml_path = 'pyproject.toml'
-          try:
-            with open(toml_path, 'r') as f: data = tomlkit.parse(f.read())
-            # *** ADJUST THIS LINE if your version is not at ['project']['version'] ***
-            base_version = data['project']['version']
-            base_version = base_version.split('.dev')[0].split('+')[0] # Clean existing dev/local parts
-            dev_version = f"{base_version}.dev{run_number}"
-            print(f"Setting version for TestPyPI: {dev_version}")
-            # *** ADJUST THIS LINE if your version is not at ['project']['version'] ***
-            data['project']['version'] = dev_version
-            with open(toml_path, 'w') as f: f.write(tomlkit.dumps(data))
-            # Set output for potential use in other steps (optional)
-            echo "dev_version=${dev_version}" >> $GITHUB_OUTPUT
-          except Exception as e:
-            print(f"Error updating version in {toml_path}: {e}", file=sys.stderr)
-            sys.exit(1)
-        env:
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        shell: python # Use python directly to run the script block
+          # Add .dev<timestamp> suffix to the version line
+          # This command is basic, adjust the regex if your version format differs
+          sed -i "s/^\(version\s*=\s*\"\)\(.*\)\"/\1\2.dev${{ steps.version_suffix.outputs.suffix }}\"/" pyproject.toml
+          echo "Updated pyproject.toml with version suffix:"
+          grep "^version" pyproject.toml
 
-      - name: Build package with dev version
+      - name: Build package
         run: python -m build
 
-      - name: Publish package to TestPyPI
-        run: >
-          uv publish --repository-url https://test.pypi.org/legacy/ dist/*
+      - name: Publish package distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # No password needed, uses trusted publishing via OIDC
+          repository-url: https://test.pypi.org/legacy/ # URL for TestPyPI uploads
+          # skip-existing: true # Optional: prevents failures if version exists
 
-    # --- Manual PyPI Publish Job ---
-  publish-to-pypi:
-    name: Publish Release to PyPI (Manual Trigger)
-    needs: test # Run tests again before publishing the release
-    # Runs ONLY on manual workflow_dispatch trigger
-    if: github.event_name == 'workflow_dispatch' && needs.test.result == 'success'
+  # --- New Job: Publish to PyPI (Manual Trigger, depends on TestPyPI success) ---
+  publish-pypi:
+    name: Publish to PyPI
+    # This job only runs when manually triggered via workflow_dispatch
+    if: github.event_name == 'workflow_dispatch'
+    needs: publish-testpypi # Ensures this runs only after successful TestPyPI publish
     runs-on: ubuntu-latest
     environment:
-      name: pypi # MUST MATCH the environment name configured in PyPI Trusted Publishers
-      url: https://pypi.org/p/simulib # <-- IMPORTANT: Replace simulib with your package name
+      name: pypi # Environment name configured in GitHub secrets/settings
+      url: https://pypi.org/pypi # URL shown in GH deployments
     permissions:
-      id-token: write # Needed for Trusted Publishing on PyPI
+      id-token: write # Necessary for trusted publishing
+
     steps:
       - name: Checkout code
-        # Checkout code again for this job's environment
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history if your build depends on git tags
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.10' # Use the same or appropriate Python version
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install build dependencies
+        run: python -m pip install build twine
 
-      - name: Install build dependency using uv
-        run: uv pip install --system --upgrade build
-
-      - name: Build package (using version from pyproject.toml)
-        # This builds the package using the version defined in your checked-out pyproject.toml
-        # Assumes this is the intended release version.
+      - name: Build package
         run: python -m build
+        # Builds the package *again* - this time it should use the
+        # final, clean version committed to your main branch (e.g., "1.2.3")
+        # Ensure your pyproject.toml or setup.py has the correct final version before triggering.
 
-      - name: Publish package to PyPI using uv and Trusted Publishing
-        run: uv publish dist/*
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No password or repository_url needed, defaults to PyPI and uses OIDC
