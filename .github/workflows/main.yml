@@ -1,14 +1,20 @@
-name: CI - Run Unit Tests in Docker with Coverage
+name: CI, TestPyPI Deploy, and Manual PyPI Release
 
 on:
   push:
     branches: [ main ]
   pull_request:
+    # Run on PRs targeting main
+    types: [opened, synchronize, reopened] # Be explicit about PR event types
     branches: [ main ]
+  # Allows manual triggering for publishing steps
+  workflow_dispatch:
 
 jobs:
+  # --- Test Job (Runs on push/pr/workflow_dispatch) ---
   test:
     runs-on: ubuntu-latest
+    # No 'if' condition needed here, controlled by top-level 'on:'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,22 +26,15 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile # Assuming Dockerfile is at the root
-          # Build the 'dev' target stage
+          file: ./Dockerfile
           target: dev
-          # Tag the image locally so subsequent steps can use it
           tags: my-test-image:latest
-          # IMPORTANT: Load the image into the local Docker daemon
           load: true
-          # Enable layer caching using GitHub Actions cache
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Run tests with dFBA extra
         run: |
-          # Runs coverage collection via 'uv run' using --with pytest-cov.
-          # Uses --parallel-mode for coverage data.
-          # Generates uniquely named JUnit report.
           docker run --rm \
             -v "$(pwd):/app" \
             -w /app \
@@ -44,23 +43,15 @@ jobs:
 
       - name: Run tests without dFBA extra
         run: |
-          # Runs coverage collection via 'uv run' using --with pytest-cov.
-          # Uses --parallel-mode for coverage data.
-          # Generates uniquely named JUnit report.
           docker run --rm \
             -v "$(pwd):/app" \
             -w /app \
             my-test-image:latest \
             uv run --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/core --junitxml=test-report-core.xml
 
-      # --- The step below only runs if BOTH test steps above succeeded ---
-
       - name: Combine and Report Coverage
         if: success()
         run: |
-          # Runs combine, report, and html generation in a single container
-          # Saves the console summary to /app/coverage_summary.txt within the container
-          # which maps to coverage_summary.txt on the runner host via the volume mount.
           docker run --rm \
             -v "$(pwd):/app" \
             -w /app \
@@ -73,73 +64,75 @@ jobs:
               echo "Generating HTML coverage report..." && \
               uv run --with pytest --with pytest-cov coverage html -d htmlcov \
             '
-          # Also echo the summary to the main job log for easy viewing there
           echo "--- Coverage Summary ---"
           cat coverage_summary.txt
           echo "------------------------"
 
       - name: Format Coverage Comment Body
-        # Prepare the content for the comment in a file
-        # Only run on successful PR builds
         if: success() && github.event_name == 'pull_request'
         run: |
           echo '### :test_tube: Coverage Report' > coverage_comment.md
           echo '' >> coverage_comment.md
           echo '```text' >> coverage_comment.md
           cat coverage_summary.txt >> coverage_comment.md
-          echo '' >> coverage_comment.md # Ensure newline before closing fence
+          echo '' >> coverage_comment.md
           echo '```' >> coverage_comment.md
-          # Optional: Add a hidden HTML comment marker for extra safety/identification
-          # echo "<!-- coverage-report-marker -->" >> coverage_comment.md
-  
+
       - name: Post or Update Coverage Comment
-          # Use the sticky comment action
-          # Only run on successful PR builds
         if: success() && github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          # Tell the action to read the comment body from the file we just created
           path: coverage_comment.md
 
-# --- New Job: Publish to TestPyPI (Manual Trigger) ---
+  # --- Job: Publish to TestPyPI (Runs automatically on PRs after tests pass) ---
   publish-testpypi:
-    name: Publish to TestPyPI
-    # This job only runs when manually triggered via workflow_dispatch
-    if: github.event_name == 'workflow_dispatch'
+    name: Publish dev build to TestPyPI
+    # Run after tests succeed, for PRs to main OR manual triggers
+    needs: test
+    # No specific 'if' here, runs if 'test' succeeded for a triggering event
+    # Implicitly runs on pull_request targeting main (from top-level 'on:')
+    # Implicitly runs on workflow_dispatch (from top-level 'on:')
     runs-on: ubuntu-latest
     environment:
-      name: testpypi # Environment name configured in GitHub secrets/settings
-      url: https://test.pypi.org/pypi # URL shown in GH deployments
+      name: testpypi
+      url: https://test.pypi.org/pypi
     permissions:
-      id-token: write # Necessary for trusted publishing
+      id-token: write # For trusted publishing
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        # Fetch all history so build tools relying on tags/history work
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Needed for accurate versioning if using git tags
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Choose your desired Python version
+          python-version: '3.10'
 
       - name: Install build dependencies
         run: python -m pip install build twine
 
       - name: Generate development version suffix
         id: version_suffix
-        # Using timestamp for uniqueness on manual triggers
-        run: echo "suffix=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+        # Use PR number/SHA for PRs, timestamp for manual triggers
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # Suffix for PR builds: .dev<PR_NUMBER>+<SHA>
+            echo "suffix=dev${{ github.event.number }}+${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          else
+            # Suffix for other builds (like manual): .dev<TIMESTAMP>
+            echo "suffix=dev$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+          fi
 
-      # IMPORTANT: Modify this step based on your project structure
-      # Option 1: Using sed (example for pyproject.toml with 'version = "..."')
       - name: Update version in pyproject.toml for TestPyPI
         run: |
-          # Add .dev<timestamp> suffix to the version line
-          # This command is basic, adjust the regex if your version format differs
-          sed -i "s/^\(version\s*=\s*\"\)\(.*\)\"/\1\2.dev${{ steps.version_suffix.outputs.suffix }}\"/" pyproject.toml
+          # Add the generated .dev suffix to the version line
+          # This assumes version = "X.Y.Z" format
+          VERSION_SUFFIX="${{ steps.version_suffix.outputs.suffix }}"
+          # Use a temporary file for sed compatibility on different OS (though runner is ubuntu)
+          sed -i.bak "s/^\(version\s*=\s*\"\)\([^\"]*\)\"/\1\2.${VERSION_SUFFIX}\"/" pyproject.toml
+          rm pyproject.toml.bak # Remove backup file
           echo "Updated pyproject.toml with version suffix:"
           grep "^version" pyproject.toml
 
@@ -149,43 +142,45 @@ jobs:
       - name: Publish package distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # No password needed, uses trusted publishing via OIDC
-          repository-url: https://test.pypi.org/legacy/ # URL for TestPyPI uploads
-          # skip-existing: true # Optional: prevents failures if version exists
+          repository-url: https://test.pypi.org/legacy/
+          # skip-existing: true # Recommended for dev builds to avoid conflicts
 
-  # --- New Job: Publish to PyPI (Manual Trigger, depends on TestPyPI success) ---
+  # --- Job: Publish to PyPI (Manual Trigger ONLY on main branch) ---
   publish-pypi:
     name: Publish to PyPI
-    # This job only runs when manually triggered via workflow_dispatch
-    if: github.event_name == 'workflow_dispatch'
-    needs: publish-testpypi # Ensures this runs only after successful TestPyPI publish
+    # Run ONLY when manually triggered AND on the main branch
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: publish-testpypi # Depends on the testpypi build (which runs first on manual trigger)
     runs-on: ubuntu-latest
     environment:
-      name: pypi # Environment name configured in GitHub secrets/settings
-      url: https://pypi.org/pypi # URL shown in GH deployments
+      name: pypi
+      url: https://pypi.org/pypi
     permissions:
-      id-token: write # Necessary for trusted publishing
+      id-token: write # For trusted publishing
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch all history if your build depends on git tags
+          # Ensure we check out the 'main' branch explicitly for the release build
+          ref: 'main'
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Use the same or appropriate Python version
+          python-version: '3.10'
 
       - name: Install build dependencies
         run: python -m pip install build twine
 
       - name: Build package
-        run: python -m build
-        # Builds the package *again* - this time it should use the
-        # final, clean version committed to your main branch (e.g., "1.2.3")
-        # Ensure your pyproject.toml or setup.py has the correct final version before triggering.
+        run: |
+          echo "Building package with version:"
+          grep "^version" pyproject.toml
+          python -m build
+          # This builds using the clean version string from the checked-out main branch code
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        # No password or repository_url needed, defaults to PyPI and uses OIDC
+        # Defaults to PyPI, uses trusted publishing
