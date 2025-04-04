@@ -30,7 +30,7 @@ jobs:
             -v "$(pwd):/app" \
             -w /app \
             my-test-image:latest \
-            uv run --with dfba --with pytest --with pytest-cov coverage run --parallel-mode --source ./src/simulib -m pytest ./tests/extras --junitxml=test-report-dfba.xml
+            uv run --with dfba --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/extras --junitxml=test-report-dfba.xml
 
       - name: Run tests without dFBA extra
         run: |
@@ -41,7 +41,7 @@ jobs:
             -v "$(pwd):/app" \
             -w /app \
             my-test-image:latest \
-            uv run --with pytest --with pytest-cov coverage run --parallel-mode --source ./src/simulib -m pytest ./tests/core --junitxml=test-report-core.xml
+            uv run --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/core --junitxml=test-report-core.xml
 
       # --- The step below only runs if BOTH test steps above succeeded ---
 
@@ -58,11 +58,11 @@ jobs:
             my-test-image:latest \
             sh -c '\
               echo "Combining coverage data..." && \
-              coverage combine && \
+              uv run --with pytest --with pytest-cov coverage combine && \
               echo "Generating coverage summary..." && \
-              coverage report -m > /app/coverage_summary.txt && \
+              uv run --with pytest --with pytest-cov coverage report -m > /app/coverage_summary.txt && \
               echo "Generating HTML coverage report..." && \
-              coverage html -d htmlcov \
+              uv run --with pytest --with pytest-cov coverage html -d htmlcov \
             '
           # Also echo the summary to the main job log for easy viewing there
           echo "--- Coverage Summary ---"
