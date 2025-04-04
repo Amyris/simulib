@@ -46,37 +46,57 @@ jobs:
       # --- The step below only runs if BOTH test steps above succeeded ---
 
       - name: Combine and Report Coverage
-        # Combines parallel data, generates console summary and HTML report in one step.
         if: success()
         run: |
-           echo "Combining coverage data..."
-           docker run --rm \
-             --user "$(id -u):$(id -g)" \
-             -v "$(pwd):/app" \
-             -w /app \
-             my-test-image:latest \
-             coverage combine # Assumes config in pyproject.toml/.coveragerc
+          # Runs combine, report, and html generation in a single container
+          # Saves the console summary to /app/coverage_summary.txt within the container
+          # which maps to coverage_summary.txt on the runner host via the volume mount.
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -v "$(pwd):/app" \
+            -w /app \
+            my-test-image:latest \
+            sh -c '\
+              echo "Combining coverage data..." && \
+              coverage combine && \
+              echo "Generating coverage summary..." && \
+              coverage report -m > /app/coverage_summary.txt && \
+              echo "Generating HTML coverage report..." && \
+              coverage html -d htmlcov \
+            '
+          # Also echo the summary to the main job log for easy viewing there
+          echo "--- Coverage Summary ---"
+          cat coverage_summary.txt
+          echo "------------------------"
 
-           echo "Generating coverage summary..."
-           docker run --rm \
-             --user "$(id -u):$(id -g)" \
-             -v "$(pwd):/app" \
-             -w /app \
-             my-test-image:latest \
-             coverage report -m # Add --fail-under=X here if needed
+      - name: Post Coverage Comment to PR
+        # Only run this step if:
+        # 1. Previous steps succeeded
+        # 2. The event that triggered the workflow is a 'pull_request'
+        if: success() && github.event_name == 'pull_request'
+        env:
+          # The GITHUB_TOKEN is automatically available to the runner
+          # We pass it explicitly for the gh cli command
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create the comment body in a temporary file
+          echo '### :test_tube: Coverage Report' > coverage_comment.md
+          echo '' >> coverage_comment.md
+          echo '```text' >> coverage_comment.md
+          # Append the captured summary from the file
+          cat coverage_summary.txt >> coverage_comment.md
+          echo '' >> coverage_comment.md # Ensure newline before closing fence
+          echo '```' >> coverage_comment.md
 
-           echo "Generating HTML coverage report..."
-           docker run --rm \
-             --user "$(id -u):$(id -g)" \
-             -v "$(pwd):/app" \
-             -w /app \
-             my-test-image:latest \
-             coverage html -d htmlcov # Generates report in 'htmlcov' directory
+          # Use GitHub CLI to post the comment from the file to the PR
+          # github.event.pull_request.number is available in pull_request events
+          gh pr comment ${{ github.event.pull_request.number }} --body-file coverage_comment.md
 
       - name: Upload HTML coverage report artifact
-        if: success() # Runs only if the previous steps (including reporting) succeeded
+        # Keep this running conditionally on success
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report-html
-          path: htmlcov/ # Upload the generated HTML directory
+          path: htmlcov/
           retention-days: 7
