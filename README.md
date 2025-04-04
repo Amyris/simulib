@@ -15,6 +15,9 @@ Simulib is a Python library designed for metabolic modeling and dynamic flux bal
 *   **Extensible:** Easily extend the library with new analysis methods and more.
 *   **Modular Design:** The library is designed with a modular architecture, making it easy to understand and contribute to.
 
+## Examples
+Simulib provides several example notebooks of its usage to help you get started. These examples demonstrate show how simulib [handles math expressions](resources/examples/handling_math_expressions.ipynb), represents [dynamic](resources/examples/representing_dynamic_models.ipynb) and [steady state](resources/examples/representing_stoichiometry_models.ipynb) models, and [performs dynamic flux balance analysis](resources/examples/running_dfba.ipynb).
+
 
 ## Getting Started
 
@@ -168,15 +171,15 @@ If you make changes to the container configuration, you can rebuild the containe
 Remote-Containers: Rebuild Container
 ```
 
-**Note**: To have `git` working correctly within the dev container, one must match the `USER_ID` build argument to your own user_id (`echo $UID`).
+**Note**: To have `git` working correctly within the dev container, one must match the `USER_UID` build argument to your own user_uid (`id -u`).
 
 ## Changelog
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) and `commitizen` to manage the changelog. The `CHANGELOG.md` file is automatically generated based on commit messages.
 
 ### Code Style
-**Python**: We follow the PEP 8 style guide.
-**Formatting**: We use black for code formatting.
+**Python**: We follow the PEP 8 style guide.  
+**Formatting**: We use black for code formatting.  
 **Imports**: We use isort for import sorting.
 
 ## Contributing
