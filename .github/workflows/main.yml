@@ -1,16 +1,14 @@
-name: CI - Run Unit Tests in Docker
+name: CI - Run Unit Tests in Docker with Coverage
 
 on:
   push:
-    branches: [ main ] # Or your default branch
-  # Trigger on pull requests targeting the main branch
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   test:
-    runs-on: ubuntu-latest # Standard runner with Docker pre-installed
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -21,24 +19,64 @@ jobs:
           docker build \
             --target dev \
             --tag my-test-image:latest \
-            --file Dockerfile .
-        # Notes:
-        # --tag my-test-image:latest : Gives the image a local name we can reference.
-        # --file path/to/your/Dockerfile : IMPORTANT: Replace with the actual path to your Dockerfile.
-        # . : Specifies the build context (usually the repository root).
+            --file Dockerfile . # Assuming Dockerfile is at the root
 
       - name: Run tests with dFBA extra
         run: |
+          # Runs coverage collection via 'uv run' using --with pytest-cov.
+          # Uses --parallel-mode for coverage data.
+          # Generates uniquely named JUnit report.
           docker run --rm \
             -v "$(pwd):/app" \
             -w /app \
             my-test-image:latest \
-            uv run --with dfba --with pytest --with pytest-cov coverage run --source ./src -m pytest ./tests/extras --junitxml=test_report.xml
+            uv run --with dfba --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/extras --junitxml=test-report-dfba.xml
 
       - name: Run tests without dFBA extra
         run: |
+          # Runs coverage collection via 'uv run' using --with pytest-cov.
+          # Uses --parallel-mode for coverage data.
+          # Generates uniquely named JUnit report.
           docker run --rm \
             -v "$(pwd):/app" \
             -w /app \
             my-test-image:latest \
-            uv run --with pytest --with pytest-cov coverage run --source ./src -m pytest ./tests/core --junitxml=test_report.xml
+            uv run --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/core --junitxml=test-report-core.xml
+
+      # --- The step below only runs if BOTH test steps above succeeded ---
+
+      - name: Combine and Report Coverage
+        # Combines parallel data, generates console summary and HTML report in one step.
+        if: success()
+        run: |
+           echo "Combining coverage data..."
+           docker run --rm \
+             --user "$(id -u):$(id -g)" \
+             -v "$(pwd):/app" \
+             -w /app \
+             my-test-image:latest \
+             coverage combine # Assumes config in pyproject.toml/.coveragerc
+
+           echo "Generating coverage summary..."
+           docker run --rm \
+             --user "$(id -u):$(id -g)" \
+             -v "$(pwd):/app" \
+             -w /app \
+             my-test-image:latest \
+             coverage report -m # Add --fail-under=X here if needed
+
+           echo "Generating HTML coverage report..."
+           docker run --rm \
+             --user "$(id -u):$(id -g)" \
+             -v "$(pwd):/app" \
+             -w /app \
+             my-test-image:latest \
+             coverage html -d htmlcov # Generates report in 'htmlcov' directory
+
+      - name: Upload HTML coverage report artifact
+        if: success() # Runs only if the previous steps (including reporting) succeeded
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-html
+          path: htmlcov/ # Upload the generated HTML directory
+          retention-days: 7
