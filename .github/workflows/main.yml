@@ -1,23 +1,25 @@
-name: CI, TestPyPI Deploy, and Manual PyPI Release
+name: CI, Test, and Tag-Based Release with Dev TestPyPI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main # Trigger for pushes to main
+    tags:
+      - 'v*' # Trigger for pushes of tags like v1.0, v2.3.4
+
   pull_request:
-    # Run on PRs targeting main
-    types: [opened, synchronize, reopened] # Be explicit about PR event types
-    branches: [ main ]
-  # Allows manual triggering for publishing steps
-  workflow_dispatch:
+    branches: [ main ] # Trigger for PRs targeting main
+    types: [opened, synchronize, reopened]
 
 jobs:
-  # --- Test Job (Runs on push/pr/workflow_dispatch) ---
+  # --- Test Job (Remains the same) ---
   test:
     runs-on: ubuntu-latest
-    # No 'if' condition needed here, controlled by top-level 'on:'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -84,86 +86,23 @@ jobs:
         with:
           path: coverage_comment.md
 
-  # --- Job: Publish to TestPyPI (Runs automatically on PRs after tests pass) ---
+  # --- Job: Publish DEV version to TestPyPI (Runs ONLY on tag pushes) ---
   publish-testpypi:
-    name: Publish dev build to TestPyPI
-    # Run after tests succeed, for PRs to main OR manual triggers
+    name: Publish Dev Version to TestPyPI
     needs: test
-    # No specific 'if' here, runs if 'test' succeeded for a triggering event
-    # Implicitly runs on pull_request targeting main (from top-level 'on:')
-    # Implicitly runs on workflow_dispatch (from top-level 'on:')
+    # Run ONLY when a tag is pushed, AFTER tests pass
+    if: success() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     environment:
       name: testpypi
       url: https://test.pypi.org/pypi
     permissions:
-      id-token: write # For trusted publishing
+      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Needed for accurate versioning if using git tags
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install build dependencies
-        run: python -m pip install build twine
-
-      - name: Generate development version suffix
-        id: version_suffix
-        # Use PR number/SHA for PRs, timestamp for manual triggers
-        run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            # Suffix for PR builds: .dev<PR_NUMBER>+<SHA>
-            echo "suffix=dev${{ github.event.number }}+${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
-          else
-            # Suffix for other builds (like manual): .dev<TIMESTAMP>
-            echo "suffix=dev$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Update version in pyproject.toml for TestPyPI
-        run: |
-          # Add the generated .dev suffix to the version line
-          # This assumes version = "X.Y.Z" format
-          VERSION_SUFFIX="${{ steps.version_suffix.outputs.suffix }}"
-          # Use a temporary file for sed compatibility on different OS (though runner is ubuntu)
-          sed -i.bak "s/^\(version\s*=\s*\"\)\([^\"]*\)\"/\1\2.${VERSION_SUFFIX}\"/" pyproject.toml
-          rm pyproject.toml.bak # Remove backup file
-          echo "Updated pyproject.toml with version suffix:"
-          grep "^version" pyproject.toml
-
-      - name: Build package
-        run: python -m build
-
-      - name: Publish package distributions to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          verbose: true
-
-  # --- Job: Publish to PyPI (Manual Trigger ONLY on main branch) ---
-  publish-pypi:
-    name: Publish to PyPI
-    # Run ONLY when manually triggered AND on the main branch
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: publish-testpypi # Depends on the testpypi build (which runs first on manual trigger)
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/pypi
-    permissions:
-      id-token: write # For trusted publishing
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          # Ensure we check out the 'main' branch explicitly for the release build
-          ref: 'main'
           fetch-depth: 0
 
       - name: Set up Python
@@ -174,13 +113,74 @@ jobs:
       - name: Install build dependencies
         run: python -m pip install build twine
 
-      - name: Build package
+      # --- Add step to generate dev suffix ---
+      - name: Generate development version suffix
+        id: version_suffix
+        # Using timestamp for uniqueness on TestPyPI for potentially repeated tag tests
+        run: echo "suffix=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+
+      # --- Add step to update version ---
+      - name: Update version in pyproject.toml for TestPyPI
         run: |
-          echo "Building package with version:"
+          # Add .dev<timestamp> suffix to the version line
+          # This assumes version = "X.Y.Z" format in pyproject.toml
+          VERSION_SUFFIX="${{ steps.version_suffix.outputs.suffix }}"
+          # Use temp file for sed compatibility
+          sed -i.bak "s/^\(version\s*=\s*\"\)\([^\"]*\)\"/\1\2.dev${VERSION_SUFFIX}\"/" pyproject.toml
+          rm pyproject.toml.bak # Remove backup
+          echo "Updated pyproject.toml with dev version suffix for TestPyPI build:"
           grep "^version" pyproject.toml
+
+      - name: Build package with dev version
+        run: |
+          echo "Building package for tag ${{ github.ref_name }} with dev suffix..."
           python -m build
-          # This builds using the clean version string from the checked-out main branch code
+
+      - name: Publish package distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          # skip-existing: true # Recommended for dev builds
+
+  # --- Job: Publish CLEAN version to PyPI (Runs ONLY on tag pushes, after TestPyPI) ---
+  publish-pypi:
+    name: Publish Clean Version to PyPI
+    needs: publish-testpypi # Depends on the TestPyPI dev publish job
+    # Run ONLY when a tag is pushed, AFTER TestPyPI publish succeeds
+    if: success() && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/pypi
+    permissions:
+      id-token: write
+
+    steps:
+      # --- Checkout code AGAIN to get the original version ---
+      - name: Checkout ORIGINAL code for tag
+        uses: actions/checkout@v4
+        with:
+          # Make sure we're checking out the code corresponding to the tag
+          # This ensures we get the pyproject.toml WITHOUT the .dev suffix
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install build dependencies
+        run: python -m pip install build twine
+
+      - name: Build package with CLEAN version
+        run: |
+          echo "Building package for tag ${{ github.ref_name }} for PyPI release (using original version)..."
+          grep "^version" pyproject.toml
+          # Builds the package using the version defined in the tagged commit's source
+          # because we checked out the original code again.
+          python -m build
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        # Defaults to PyPI, uses trusted publishing
+        # Defaults to PyPI, uses trusted publishing via OIDC
