@@ -30,7 +30,7 @@ jobs:
             -v "$(pwd):/app" \
             -w /app \
             my-test-image:latest \
-            uv run --with dfba --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/extras --junitxml=test-report-dfba.xml
+            uv run --with dfba --with pytest --with pytest-cov coverage run --parallel-mode --source ./src/simulib -m pytest ./tests/extras --junitxml=test-report-dfba.xml
 
       - name: Run tests without dFBA extra
         run: |
@@ -41,7 +41,7 @@ jobs:
             -v "$(pwd):/app" \
             -w /app \
             my-test-image:latest \
-            uv run --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/core --junitxml=test-report-core.xml
+            uv run --with pytest --with pytest-cov coverage run --parallel-mode --source ./src/simulib -m pytest ./tests/core --junitxml=test-report-core.xml
 
       # --- The step below only runs if BOTH test steps above succeeded ---
 
@@ -55,7 +55,7 @@ jobs:
              -v "$(pwd):/app" \
              -w /app \
              my-test-image:latest \
-             coverage --source ./src combine # Assumes config in pyproject.toml/.coveragerc
+             coverage combine # Assumes config in pyproject.toml/.coveragerc
 
            echo "Generating coverage summary..."
            docker run --rm \
@@ -63,7 +63,7 @@ jobs:
              -v "$(pwd):/app" \
              -w /app \
              my-test-image:latest \
-             coverage --source ./src report -m # Add --fail-under=X here if needed
+             coverage report -m # Add --fail-under=X here if needed
 
            echo "Generating HTML coverage report..."
            docker run --rm \
@@ -71,7 +71,7 @@ jobs:
              -v "$(pwd):/app" \
              -w /app \
              my-test-image:latest \
-             coverage --source ./src html -d htmlcov # Generates report in 'htmlcov' directory
+             coverage html -d htmlcov # Generates report in 'htmlcov' directory
 
       - name: Upload HTML coverage report artifact
         if: success() # Runs only if the previous steps (including reporting) succeeded
