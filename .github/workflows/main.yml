@@ -7,31 +7,6 @@ on:
     branches: [ main ]
 
 jobs:
-  
-  build_check:
-    # Run on pull requests to verify the build process
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install uv and build tool
-        run: |
-          python -m pip install --upgrade pip uv
-          uv pip install --system build
-
-      - name: Build package
-        run: uv run -- python -m build
-
-      - name: List built artifacts
-        run: ls -l dist/
-
   test:
     runs-on: ubuntu-latest
     steps:
@@ -125,3 +100,62 @@ jobs:
         with:
           # Tell the action to read the comment body from the file we just created
           path: coverage_comment.md
+
+  publish-to-testpypi:
+    name: Publish to TestPyPI
+    needs: test # Depends on test job succeeding
+    if: github.event_name == 'workflow_dispatch' # Only runs on manual trigger
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi # Matches Trusted Publisher config on TestPyPI
+      url: https://test.pypi.org/p/simulib # Replace YOUR_PACKAGE_NAME
+    permissions:
+      id-token: write # Needed for Trusted Publishing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install build dependency using uv
+        run: uv pip install --system --upgrade build
+      - name: Build package
+        run: python -m build
+      - name: Publish package to TestPyPI using uv and Trusted Publishing
+        run: >
+          uv publish --repository-url https://test.pypi.org/legacy/ dist/*
+    # --- End of TestPyPI publish job ---
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: publish-to-testpypi # Depends on TestPyPI publish job succeeding
+    if: github.event_name == 'workflow_dispatch' # Also only runs on manual trigger (implicitly via needs)
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi # MUST MATCH the environment name configured in PyPI Trusted Publishers
+      url: https://pypi.org/p/simulib # Replace YOUR_PACKAGE_NAME
+    permissions:
+      id-token: write # Needed for Trusted Publishing on PyPI
+    steps:
+      - name: Checkout code
+        # Checkout code again for this job's environment
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install build dependency using uv
+        run: uv pip install --system --upgrade build
+      - name: Build package
+        # Re-build the package in this job's environment
+        run: python -m build
+      - name: Publish package to PyPI using uv and Trusted Publishing
+        # No --repository-url needed, uv defaults to PyPI
+        # Authentication happens via OIDC token automatically
+        run: uv publish dist/*
+    # --- End of PyPI publish job ---
