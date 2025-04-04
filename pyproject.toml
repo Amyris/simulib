@@ -1,11 +1,21 @@
 [project]
 name = "simulib"
-version = "0.4.0"
+version = "0.1.0"
 description = "A library that wraps metabolic simulation methods from various frameworks and provides a common framework for input and output handling"
 authors = [
     { name = "Vitor Vieira", email = "vvieira@amyris.com"},
     { name = "Joao Fonseca", email = "jfonseca@amyris.com"}
 ]
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Natural Language :: English"
+]
+
 requires-python = ">=3.8, <3.11"
 
 dependencies = [
