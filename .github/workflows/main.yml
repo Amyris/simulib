@@ -1,0 +1,103 @@
+name: CI - Run Unit Tests in Docker with Coverage
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image with Cache
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile # Assuming Dockerfile is at the root
+          # Build the 'dev' target stage
+          target: dev
+          # Tag the image locally so subsequent steps can use it
+          tags: my-test-image:latest
+          # IMPORTANT: Load the image into the local Docker daemon
+          load: true
+          # Enable layer caching using GitHub Actions cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run tests with dFBA extra
+        run: |
+          # Runs coverage collection via 'uv run' using --with pytest-cov.
+          # Uses --parallel-mode for coverage data.
+          # Generates uniquely named JUnit report.
+          docker run --rm \
+            -v "$(pwd):/app" \
+            -w /app \
+            my-test-image:latest \
+            uv run --with dfba --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/extras --junitxml=test-report-dfba.xml
+
+      - name: Run tests without dFBA extra
+        run: |
+          # Runs coverage collection via 'uv run' using --with pytest-cov.
+          # Uses --parallel-mode for coverage data.
+          # Generates uniquely named JUnit report.
+          docker run --rm \
+            -v "$(pwd):/app" \
+            -w /app \
+            my-test-image:latest \
+            uv run --with pytest --with pytest-cov coverage run --parallel-mode -m pytest ./tests/core --junitxml=test-report-core.xml
+
+      # --- The step below only runs if BOTH test steps above succeeded ---
+
+      - name: Combine and Report Coverage
+        if: success()
+        run: |
+          # Runs combine, report, and html generation in a single container
+          # Saves the console summary to /app/coverage_summary.txt within the container
+          # which maps to coverage_summary.txt on the runner host via the volume mount.
+          docker run --rm \
+            -v "$(pwd):/app" \
+            -w /app \
+            my-test-image:latest \
+            sh -c '\
+              echo "Combining coverage data..." && \
+              uv run --with pytest --with pytest-cov coverage combine && \
+              echo "Generating coverage summary..." && \
+              uv run --with pytest --with pytest-cov coverage report -m > /app/coverage_summary.txt && \
+              echo "Generating HTML coverage report..." && \
+              uv run --with pytest --with pytest-cov coverage html -d htmlcov \
+            '
+          # Also echo the summary to the main job log for easy viewing there
+          echo "--- Coverage Summary ---"
+          cat coverage_summary.txt
+          echo "------------------------"
+
+      - name: Format Coverage Comment Body
+        # Prepare the content for the comment in a file
+        # Only run on successful PR builds
+        if: success() && github.event_name == 'pull_request'
+        run: |
+          echo '### :test_tube: Coverage Report' > coverage_comment.md
+          echo '' >> coverage_comment.md
+          echo '```text' >> coverage_comment.md
+          cat coverage_summary.txt >> coverage_comment.md
+          echo '' >> coverage_comment.md # Ensure newline before closing fence
+          echo '```' >> coverage_comment.md
+          # Optional: Add a hidden HTML comment marker for extra safety/identification
+          # echo "<!-- coverage-report-marker -->" >> coverage_comment.md
+  
+      - name: Post or Update Coverage Comment
+          # Use the sticky comment action
+          # Only run on successful PR builds
+        if: success() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          # Tell the action to read the comment body from the file we just created
+          path: coverage_comment.md

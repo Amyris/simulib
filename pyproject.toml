@@ -79,3 +79,23 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.coverage.run]
+source = ["src"]  # List format often used here
+parallel = true
+branch = true
+# omit = ["src/__init__.py", "src/config/*"] # Optional
+
+[tool.coverage.report]
+show_missing = true
+# fail_under = 90 # Optional
+# exclude_lines = [ # Optional
+#     "pragma: no cover",
+#     "raise NotImplementedError",
+#     "if __name__ == .__main__.:",
+# ]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+# output = "coverage.xml" # Optional
