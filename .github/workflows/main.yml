@@ -63,7 +63,6 @@ jobs:
           # Saves the console summary to /app/coverage_summary.txt within the container
           # which maps to coverage_summary.txt on the runner host via the volume mount.
           docker run --rm \
-            --user "$(id -u):$(id -g)" \
             -v "$(pwd):/app" \
             -w /app \
             my-test-image:latest \
