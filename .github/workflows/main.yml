@@ -19,6 +19,7 @@ jobs:
       - name: Build Docker image for testing
         run: |
           docker build \
+            --target dev \
             --tag my-test-image:latest \
             --file Dockerfile .
         # Notes:
