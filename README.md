@@ -28,7 +28,7 @@ Simulib provides several example notebooks of its usage to help you get started.
 
 ### Installation
 
-Simulib is not yet available on PyPI. For now, you can install it directly from the repository:
+Simulib is available on PyPI. Nevertheless, you can install it directly from the repository:
 
 1.  Clone the repository:
 
@@ -46,6 +46,11 @@ Simulib is not yet available on PyPI. For now, you can install it directly from 
     ```bash
     docker-compose run --rm app uv sync --extra dfba
     ```
+3. Run python
+    ```bash
+    docker-compose run --rm app uv run --with dfba python
+    ```
+    
 
 ### Running Tests
 
