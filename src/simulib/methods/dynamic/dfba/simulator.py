@@ -278,7 +278,7 @@ class DynamicFBASimulator(MetabolicSimulator):
                 )
             except TypeError as e:
                 logger.exception(
-                    'Unable to add flag "integrated_over_time". '
+                    'Unable to add flag "is_integrated_over_time". '
                     "Assuming all rhs expressions are integrated"
                 )
                 dfba_model.add_rhs_expression(
