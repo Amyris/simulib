@@ -276,7 +276,7 @@ class DynamicFBASimulator(MetabolicSimulator):
                     flux.rhs_expression,
                     flux.simulation_properties.is_integrated_over_time,
                 )
-            except TypeError as e:
+            except TypeError:
                 logger.exception(
                     'Unable to add flag "is_integrated_over_time". '
                     "Assuming all rhs expressions are integrated"
