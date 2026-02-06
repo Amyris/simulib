@@ -1,6 +1,6 @@
 [project]
 name = "simulib"
-version = "0.1.0"
+version = "0.1.1"
 description = "A library that wraps metabolic simulation methods from various frameworks and provides a common framework for input and output handling"
 authors = [
     { name = "Vitor Vieira", email = "vvieira@amyris.com"},

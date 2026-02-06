@@ -116,6 +116,7 @@ class DynamicExchangeFlux(BaseModel):
 
 
 class ODESimulationProperties(BaseModel):
+    is_integrated_over_time: bool = True
     abs_tolerance: Optional[float] = None
 
 
