@@ -270,10 +270,21 @@ class DynamicFBASimulator(MetabolicSimulator):
             flux.substitute(dynamic_variables)
             flux.substitute(exchange_variables)
 
-            dfba_model.add_rhs_expression(
-                flux.variable,
-                flux.rhs_expression,
-            )
+            try:
+                dfba_model.add_rhs_expression(
+                    flux.variable,
+                    flux.rhs_expression,
+                    flux.simulation_properties.is_integrated_over_time,
+                )
+            except TypeError as e:
+                logger.exception(
+                    'Unable to add flag "integrated_over_time". '
+                    "Assuming all rhs expressions are integrated"
+                )
+                dfba_model.add_rhs_expression(
+                    flux.variable,
+                    flux.rhs_expression,
+                )
 
         for exchange_flux in dynamic_model.exchange_fluxes:
             cls.__add_exchange_bounds(
